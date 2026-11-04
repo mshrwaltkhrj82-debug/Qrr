@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تطبيق قارئ ومولد QR</title>
-    <!-- استدعاء Tailwind CSS للتصميم السريع والأنيق -->
+    <!-- استدعاء Tailwind CSS للتصميم -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <!-- مكتبة قراءة وتوليد QR للويب -->
     <script src="https://unpkg.com/@zxing/library@latest"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col items-center p-4">
 
-    <!-- العنوان وزر التبديل -->
+    <!-- العنوان وزر التبديل بين المسح والتوليد -->
     <div class="w-full max-w-md flex justify-between items-center mb-6 bg-gray-800 p-4 rounded-xl shadow-lg">
         <h1 class="text-xl font-bold text-green-400">قارئ ومولد QR</h1>
         <button onclick="toggleMode()" id="modeToggleBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-semibold transition">
@@ -19,18 +19,20 @@
         </button>
     </div>
 
-    <!-- قسم المسح (Scanner Section) -->
+    <!-- قسم المسح وقراءة الصور (Scan Section) -->
     <div id="scanSection" class="w-full max-w-md flex flex-col items-center bg-gray-800 p-6 rounded-2xl shadow-xl">
         <div class="relative w-full h-64 bg-black rounded-xl overflow-hidden mb-4 flex items-center justify-center border-2 border-green-500">
             <video id="video" class="w-full h-full object-cover"></video>
             <div class="absolute inset-0 border-4 border-dashed border-green-400 opacity-40 pointer-events-none m-8 rounded-lg"></div>
         </div>
-        <p id="scanResult" class="text-center text-gray-300 bg-gray-700 p-3 rounded-lg w-full mb-3 min-h-[50px] flex items-center justify-center">قم بتوجيه الكاميرا نحو الرمز...</p>
-        <a id="openUrlBtn" href="#" target="_blank" class="hidden w-full bg-blue-500 hover:bg-blue-600 text-center py-2 rounded-lg font-bold transition mb-2">فتح الرابط</a>
         
-        <!-- زر اختيار صورة للمسح -->
-        <label class="w-full bg-gray-700 hover:bg-gray-600 text-center py-2 rounded-lg font-semibold cursor-pointer transition">
-            اختر صورة من الجهاز لفحصها
+        <p id="scanResult" class="text-center text-gray-300 bg-gray-700 p-3 rounded-lg w-full mb-3 min-h-[50px] flex items-center justify-center">قم بتوجيه الكاميرا نحو الرمز...</p>
+        
+        <a id="openUrlBtn" href="#" target="_blank" class="hidden w-full bg-blue-500 hover:bg-blue-600 text-center py-2 rounded-lg font-bold transition mb-3">فتح الرابط</a>
+        
+        <!-- زر رفع صورة من الجهاز وقراءتها -->
+        <label class="w-full bg-green-600 hover:bg-green-700 text-center py-3 rounded-xl font-bold cursor-pointer transition shadow-md flex items-center justify-center gap-2">
+            <span>📁 رفع صورة تحتوي على QR وقراءتها</span>
             <input type="file" accept="image/*" class="hidden" onchange="scanImageFromFile(event)">
         </label>
     </div>
@@ -50,16 +52,14 @@
         </button>
     </div>
 
-    <!-- مكتبة لتوليد الـ QR بسهولة (QRCode.js) -->
+    <!-- مكتبة توليد الـ QR -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <script>
         let isScanMode = true;
         let codeReader = new ZXing.BrowserQRCodeReader();
-        let selectedDeviceId;
         let qrInstance;
 
-        // تهيئة مولد الـ QR
         window.onload = function() {
             qrInstance = new QRCode(document.getElementById("qrcode"), {
                 text: "",
@@ -72,7 +72,7 @@
             startCamera();
         };
 
-        // تبديل الأوضاع بين المسح والتوليد
+        // تبديل الأوضاع
         function toggleMode() {
             isScanMode = !isScanMode;
             const scanSec = document.getElementById("scanSection");
@@ -92,21 +92,11 @@
             }
         }
 
-        // تشغيل الكاميرا للمسح
+        // تشغيل الكاميرا
         function startCamera() {
             codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
                 if (result) {
-                    let text = result.text;
-                    let resElem = document.getElementById("scanResult");
-                    let urlBtn = document.getElementById("openUrlBtn");
-                    
-                    resElem.innerText = text;
-                    if (text.startsWith("http://") || text.startsWith("https://")) {
-                        urlBtn.href = text;
-                        urlBtn.classList.remove("hidden");
-                    } else {
-                        urlBtn.classList.add("hidden");
-                    }
+                    processScanResult(result.text);
                 }
             }).catch(err => console.error(err));
         }
@@ -115,7 +105,41 @@
             codeReader.reset();
         }
 
-        // توليد الرمز لحظياً عند الكتابة
+        // معالجة النتيجة المكتشفة وعرضها أو تفعيل زر الرابط
+        function processScanResult(text) {
+            let resElem = document.getElementById("scanResult");
+            let urlBtn = document.getElementById("openUrlBtn");
+            
+            resElem.innerText = text;
+            if (text.startsWith("http://") || text.startsWith("https://")) {
+                urlBtn.href = text;
+                urlBtn.classList.remove("hidden");
+            } else {
+                urlBtn.classList.add("hidden");
+            }
+        }
+
+        // قراءة رمز QR من ملف صورة مرفوع
+        function scanImageFromFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    codeReader.decodeFromImage(img).then(result => {
+                        processScanResult(result.text);
+                    }).catch(err => {
+                        alert("لم يتم العثور على رمز QR صالح في الصورة المرفوعة!");
+                    });
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // توليد الرمز لحظياً
         function generateQR() {
             let val = document.getElementById("textInput").value;
             qrInstance.clear();
@@ -127,28 +151,7 @@
             }
         }
 
-        // مسح رمز QR من صورة مرفوعة
-        function scanImageFromFile(e) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    codeReader.decodeFromImage(img).then(result => {
-                        let text = result.text;
-                        document.getElementById("scanResult").innerText = text;
-                        let urlBtn = document.getElementById("openUrlBtn");
-                        if (text.startsWith("http://") || text.startsWith("https://")) {
-                            urlBtn.href = text;
-                            urlBtn.classList.remove("hidden");
-                        }
-                    }).catch(err => alert("لم يتم العثور على رمز QR صالح في الصورة!"));
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(e.target.files[0]);
-        }
-
-        // تحميل الرمز كصورة PNG
+        // تحميل الرمز كصورة
         function downloadQR() {
             let img = document.querySelector("#qrcode img");
             if(img) {
