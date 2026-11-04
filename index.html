@@ -19,7 +19,7 @@
         </button>
     </div>
 
-    <!-- قسم المسح وقراءة الصور (Scan Section) -->
+    <!-- قسم المسح وقراءة الرموز (Scan Section) -->
     <div id="scanSection" class="w-full max-w-md flex flex-col items-center bg-gray-800 p-6 rounded-2xl shadow-xl">
         <div class="relative w-full h-64 bg-black rounded-xl overflow-hidden mb-4 flex items-center justify-center border-2 border-green-500">
             <video id="video" class="w-full h-full object-cover"></video>
@@ -30,22 +30,27 @@
         
         <a id="openUrlBtn" href="#" target="_blank" class="hidden w-full bg-blue-500 hover:bg-blue-600 text-center py-2 rounded-lg font-bold transition mb-3">فتح الرابط</a>
         
-        <!-- زر رفع صورة من الجهاز وقراءتها -->
         <label class="w-full bg-green-600 hover:bg-green-700 text-center py-3 rounded-xl font-bold cursor-pointer transition shadow-md flex items-center justify-center gap-2">
             <span>📁 رفع صورة تحتوي على QR وقراءتها</span>
             <input type="file" accept="image/*" class="hidden" onchange="scanImageFromFile(event)">
         </label>
     </div>
 
-    <!-- قسم التوليد (Generator Section - مخفياً افتراضياً) -->
+    <!-- قسم التوليد ورفع الصور لتحويلها لـ QR (Generator Section) -->
     <div id="generatorSection" class="w-full max-w-md flex flex-col items-center bg-gray-800 p-6 rounded-2xl shadow-xl hidden">
-        <input type="text" id="textInput" placeholder="أدخل النص أو الرابط هنا..." oninput="generateQR()" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white mb-4 focus:outline-none focus:border-green-400 text-right">
+        <input type="text" id="textInput" placeholder="أدخل النص أو الرابط هنا..." oninput="generateQR()" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white mb-3 focus:outline-none focus:border-green-400 text-right">
         
+        <!-- زر جديد لرفع صورة من الجهاز وتحويلها مباشرة إلى QR -->
+        <label class="w-full bg-purple-600 hover:bg-purple-700 text-center py-3 rounded-xl font-bold cursor-pointer transition shadow-md flex items-center justify-center gap-2 mb-4">
+            <span>📷 رفع صورة لتحويلها إلى QR</span>
+            <input type="file" accept="image/*" class="hidden" onchange="uploadAndGenerateQR(event)">
+        </label>
+
         <div class="bg-white p-4 rounded-xl shadow-inner mb-4 flex items-center justify-center min-h-[220px] min-w-[220px]">
             <div id="qrcode"></div>
         </div>
 
-        <p id="statusText" class="text-green-400 text-sm mb-3 font-semibold"></p>
+        <p id="statusText" class="text-green-400 text-sm mb-3 font-semibold text-center"></p>
         
         <button onclick="downloadQR()" class="w-full bg-green-600 hover:bg-green-700 py-2 rounded-lg font-bold transition">
             حفظ رمز QR كصورة
@@ -59,6 +64,7 @@
         let isScanMode = true;
         let codeReader = new ZXing.BrowserQRCodeReader();
         let qrInstance;
+        const IMGBB_API_KEY = "d6e15cb5b6c12b8e7157afee611aa441";
 
         window.onload = function() {
             qrInstance = new QRCode(document.getElementById("qrcode"), {
@@ -72,7 +78,6 @@
             startCamera();
         };
 
-        // تبديل الأوضاع
         function toggleMode() {
             isScanMode = !isScanMode;
             const scanSec = document.getElementById("scanSection");
@@ -92,7 +97,6 @@
             }
         }
 
-        // تشغيل الكاميرا
         function startCamera() {
             codeReader.decodeFromVideoDevice(undefined, 'video', (result, err) => {
                 if (result) {
@@ -105,7 +109,6 @@
             codeReader.reset();
         }
 
-        // معالجة النتيجة المكتشفة وعرضها أو تفعيل زر الرابط
         function processScanResult(text) {
             let resElem = document.getElementById("scanResult");
             let urlBtn = document.getElementById("openUrlBtn");
@@ -119,7 +122,6 @@
             }
         }
 
-        // قراءة رمز QR من ملف صورة مرفوع
         function scanImageFromFile(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -139,7 +141,46 @@
             reader.readAsDataURL(file);
         }
 
-        // توليد الرمز لحظياً
+        // رفع الصورة المتاحة وتحويلها إلى رابط ثم توليد QR لها
+        function uploadAndGenerateQR(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById("statusText").innerText = "جاري رفع الصورة وتحويلها لـ QR...";
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                // استخراج Base64 للصورة
+                let base64Image = event.target.result.split(',')[1];
+
+                let formData = new FormData();
+                formData.append("key", IMGBB_API_KEY);
+                formData.append("image", base64Image);
+
+                fetch("https://api.imgbb.com/1/upload", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let imageUrl = data.data.url;
+                        document.getElementById("textInput").value = imageUrl;
+                        qrInstance.clear();
+                        qrInstance.makeCode(imageUrl);
+                        document.getElementById("statusText").innerText = "تم رفع الصورة وتوليد الرمز بنجاح!";
+                    } else {
+                        document.getElementById("statusText").innerText = "فشل رفع الصورة، حاول مجدداً.";
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    document.getElementById("statusText").innerText = "حدث خطأ أثناء الاتصال بالإنترنت.";
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
         function generateQR() {
             let val = document.getElementById("textInput").value;
             qrInstance.clear();
@@ -151,7 +192,6 @@
             }
         }
 
-        // تحميل الرمز كصورة
         function downloadQR() {
             let img = document.querySelector("#qrcode img");
             if(img) {
@@ -160,7 +200,7 @@
                 link.href = img.src;
                 link.click();
             } else {
-                alert("الرجاء إدخال نص أولاً لتوليد الرمز!");
+                alert("الرجاء إدخال نص أو رفع صورة أولاً لتوليد الرمز!");
             }
         }
     </script>
